@@ -8,7 +8,7 @@ backend you want to run and follow that one section.
 | --- | --- | --- |
 | [Cosmos Framework](#cosmos-framework) | Native PyTorch inference, launched with `torchrun` | Reasoner, Generator (Audiovisual, Action, **Transfer**) |
 | [Diffusers](#diffusers) | Direct generation with `Cosmos3OmniPipeline` | Generator (Audiovisual) |
-| [Transformers](#transformers-coming-soon) | Hugging Face Transformers inference | Reasoner |
+| [Transformers](#transformers) | Hugging Face Transformers inference | Reasoner |
 | [vLLM](#vllm) | OpenAI-compatible reasoning server (image/video understanding) | Reasoner |
 | [vLLM-Omni](#vllm-omni) | OpenAI-compatible generation server (image/video/audio/action) | Generator (Audiovisual, Action) |
 | [NIM](#nim) | Prebuilt OpenAI-compatible reasoning server (image/video understanding); no venv | Reasoner |
@@ -31,7 +31,7 @@ backend you want to run and follow that one section.
   To disable the guardrail, set `enable_safety_checker=False` (Diffusers), `guardrails: false`
   (vLLM-Omni `extra_params`/`extra_args`), or
   `--no-guardrails` (Cosmos Framework).
-- For the Cosmos Framework and vLLM backends: access to `git@github.com:NVIDIA/cosmos-framework.git`.
+- For the Cosmos Framework backend: access to `git@github.com:NVIDIA/cosmos-framework.git`.
 - For the NIM backend: an NGC API key (used as `NGC_API_KEY`), which you can generate on [build.nvidia.com](https://build.nvidia.com/nvidia/cosmos3-nano-reasoner) or [NGC](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/cosmos3-reasoner), plus a one-time `docker login nvcr.io` (username `$oauthtoken`, password = your key). The HF login above is not needed for NIM.
 - Enough local disk for the venv/image, the uv cache, and the model cache. Nano
   downloads plus CUDA dependencies can take tens of GiB.
@@ -43,8 +43,8 @@ driver**. Pick the tag that matches the CUDA version your driver supports:
 
 | Driver CUDA | Backend tag | Notes |
 | --- | --- | --- |
-| 13.x | `cu130` | Default in the notebooks (e.g. `vllm==0.21.0`). |
-| 12.x | `cu128` | Use the `cu128` pair instead (e.g. `vllm==0.19.1`). |
+| 13.x | `cu130` | Default in the notebooks. |
+| 12.x | `cu128` | Use when a compatible wheel is available for the selected package version. |
 
 vLLM does not publish a wheel for every CUDA minor version, so
 `--torch-backend=auto` is not reliable here — choose the pair that matches your
@@ -161,30 +161,56 @@ uv pip install --torch-backend=cu130 \
   transformers
 ```
 
-## Transformers (coming soon)
+## Transformers
 
-Support for Transformers-based Reasoner inference is coming soon.
+Local Python inference for the Cosmos3 Reasoner. This backend uses the
+Transformers Cosmos3 integration and loads only the Reasoner tower from the
+unified Cosmos3 checkpoint.
+
+Cosmos3 support first appears in the Transformers `v5.11.0` release tag. Create
+a venv and install Transformers `5.11.0` or newer:
+
+```bash
+uv venv --python 3.13 --seed --managed-python
+source .venv/bin/activate
+
+uv pip install --torch-backend=auto \
+  accelerate \
+  av \
+  pillow \
+  "safetensors>=0.8.0" \
+  torch \
+  torchvision \
+  "transformers>=5.11.0"
+```
+
+`--torch-backend=auto` lets uv detect the CUDA build of `torch`/`torchvision`
+that matches your NVIDIA driver. Pin a backend such as `cu128` or `cu130` if
+your environment needs an explicit CUDA wheel.
+
+Use `Cosmos3OmniForConditionalGeneration` with `AutoProcessor` and either
+`nvidia/Cosmos3-Nano` or `nvidia/Cosmos3-Super`. See the
+[Reasoner Transformers quickstart](reasoner/README.md#run-with-transformers)
+for a runnable image example and video input notes.
 
 ## vLLM
 
 OpenAI-compatible **reasoning** server for the Reasoner cookbook (image/video
-understanding). Create a venv and install vLLM plus the `vllm-cosmos3` plugin,
-which registers the `Cosmos3ReasonerForConditionalGeneration` architecture:
+understanding). Native Cosmos3 Reasoner support first appears in the vLLM
+`v0.23.0` stable release:
 
 ```bash
 uv venv --python 3.13 --seed --managed-python
 source .venv/bin/activate
 
 # CUDA 13 driver:
-uv pip install --torch-backend=cu130 "vllm==0.21.0" \
-  "vllm-cosmos3 @ git+https://github.com/NVIDIA/cosmos-framework.git#subdirectory=packages/vllm-cosmos3"
+uv pip install --torch-backend=cu130 "vllm>=0.23.0"
 
 # CUDA 12.x driver:
-# uv pip install --torch-backend=cu128 "vllm==0.19.1" \
-#   "vllm-cosmos3 @ git+https://github.com/NVIDIA/cosmos-framework.git#subdirectory=packages/vllm-cosmos3"
+# uv pip install --torch-backend=cu128 "vllm>=0.23.0"
 ```
 
-The vLLM version and the torch backend are paired — see
+The vLLM wheel and the torch backend must be compatible — see
 [CUDA driver and the `cuXXX` backend](#cuda-driver-and-the-cuxxx-backend).
 
 If your vLLM build reports that DeepGEMM is unavailable, disable it before
@@ -212,7 +238,6 @@ notebook's `COSMOS3_MEDIA_ROOT`.
 ```bash
 CUDA_VISIBLE_DEVICES=0 \
 vllm serve nvidia/Cosmos3-Nano \
-  --hf-overrides '{"architectures": ["Cosmos3ReasonerForConditionalGeneration"]}' \
   --tensor-parallel-size 1 \
   --mm-encoder-tp-mode data \
   --async-scheduling \
@@ -229,7 +254,6 @@ export VLLM_PORT="${VLLM_PORT:-8001}"
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 \
 vllm serve nvidia/Cosmos3-Super \
-  --hf-overrides '{"architectures": ["Cosmos3ReasonerForConditionalGeneration"]}' \
   --tensor-parallel-size 4 \
   --mm-encoder-tp-mode data \
   --async-scheduling \
