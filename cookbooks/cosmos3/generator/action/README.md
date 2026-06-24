@@ -17,7 +17,7 @@ The rest of this doc shows how to run these modes on selected embodiments direct
   - [Cosmos Framework Walkthrough](#cosmos-framework-walkthrough)
 - [Run with vLLM-Omni](#run-with-vllm-omni)
   - [Quickstart](#quickstart-1)
-  - [Notebook walkthrough](#notebook-walkthrough)
+  - [Notebook walkthrough](#vllm-omni-notebook-walkthrough)
 - [Post-Train for Cosmos3-Nano-Policy-DROID](#post-train-for-cosmos3-nano-policy-droid)
 
 ## Overview
